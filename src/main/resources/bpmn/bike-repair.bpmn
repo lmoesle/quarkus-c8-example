@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="BikeRepairDefinitions" targetNamespace="https://lmoesle.de/bikeshop/repair" exporter="Camunda Modeler" exporterVersion="5.34.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:process id="BikeRepair" name="Fahrrad reparieren" isExecutable="true">
+    <bpmn:startEvent id="BikeReceived" name="Fahrrad eingegangen">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="AssessDamage" name="Schaden begutachten">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="assess-damage" bindingType="deployment" />
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="=[&#34;technicians&#34;]" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:outgoing>Flow_Assessed</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="CreateOffer" name="Angebot erstellen">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="create-offer" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Assessed</bpmn:incoming>
+      <bpmn:outgoing>Flow_Created</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="ReviewOffer" name="Angebot prüfen">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="review-offer" bindingType="deployment" />
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="=[&#34;customer-service&#34;]" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Created</bpmn:incoming>
+      <bpmn:outgoing>Flow_Reviewed</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="OfferApproved" name="Angebot freigegeben?" default="Flow_Revise">
+      <bpmn:incoming>Flow_Reviewed</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approved</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Revise</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="ReviseOffer" name="Angebot überarbeiten">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="revise-offer" bindingType="deployment" />
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="=[&#34;customer-service&#34;]" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Revise</bpmn:incoming>
+      <bpmn:outgoing>Flow_Revised</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="OfferReady" name="Angebot versandbereit">
+      <bpmn:incoming>Flow_Approved</bpmn:incoming>
+      <bpmn:incoming>Flow_Revised</bpmn:incoming>
+      <bpmn:outgoing>Flow_Ready</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="SendOffer" name="Angebot an Kunde senden">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-offer" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Ready</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sent</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:eventBasedGateway id="AwaitCustomerDecision" name="Kundenantwort abwarten">
+      <bpmn:incoming>Flow_Sent</bpmn:incoming>
+      <bpmn:outgoing>Flow_Accept</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Reject</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Expire</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="CustomerAccepted" name="Angebot angenommen">
+      <bpmn:incoming>Flow_Accept</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToRepair</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="AcceptedDefinition" messageRef="AcceptedMessage" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="CustomerRejected" name="Angebot abgelehnt">
+      <bpmn:incoming>Flow_Reject</bpmn:incoming>
+      <bpmn:outgoing>Flow_RejectedReturn</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="RejectedDefinition" messageRef="RejectedMessage" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="OfferExpired" name="Zwei Wochen verstrichen">
+      <bpmn:incoming>Flow_Expire</bpmn:incoming>
+      <bpmn:outgoing>Flow_ExpiredReturn</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="ExpiryDefinition">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">=offerValidity</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="RepairBicycle" name="Fahrrad reparieren">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="repair-bicycle" bindingType="deployment" />
+        <zeebe:userTask />
+        <zeebe:assignmentDefinition candidateGroups="=[&#34;technicians&#34;]" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToRepair</bpmn:incoming>
+      <bpmn:outgoing>Flow_RepairedReturn</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="ReturnedRepaired" name="Repariert zurückgegeben">
+      <bpmn:incoming>Flow_RepairedReturn</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="ReturnedRejected" name="Unrepariert zurückgegeben (abgelehnt)">
+      <bpmn:incoming>Flow_RejectedReturn</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="ReturnedExpired" name="Unrepariert zurückgegeben (Frist)">
+      <bpmn:incoming>Flow_ExpiredReturn</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start" sourceRef="BikeReceived" targetRef="AssessDamage" />
+    <bpmn:sequenceFlow id="Flow_Assessed" sourceRef="AssessDamage" targetRef="CreateOffer" />
+    <bpmn:sequenceFlow id="Flow_Created" sourceRef="CreateOffer" targetRef="ReviewOffer" />
+    <bpmn:sequenceFlow id="Flow_Reviewed" sourceRef="ReviewOffer" targetRef="OfferApproved" />
+    <bpmn:sequenceFlow id="Flow_Approved" name="Freigegeben" sourceRef="OfferApproved" targetRef="OfferReady">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=if reviewDecision instance of string then reviewDecision = "APPROVE" else false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Revise" name="Überarbeiten" sourceRef="OfferApproved" targetRef="ReviseOffer" />
+    <bpmn:sequenceFlow id="Flow_Revised" sourceRef="ReviseOffer" targetRef="OfferReady" />
+    <bpmn:sequenceFlow id="Flow_Ready" sourceRef="OfferReady" targetRef="SendOffer" />
+    <bpmn:sequenceFlow id="Flow_Sent" sourceRef="SendOffer" targetRef="AwaitCustomerDecision" />
+    <bpmn:sequenceFlow id="Flow_Accept" sourceRef="AwaitCustomerDecision" targetRef="CustomerAccepted" />
+    <bpmn:sequenceFlow id="Flow_Reject" sourceRef="AwaitCustomerDecision" targetRef="CustomerRejected" />
+    <bpmn:sequenceFlow id="Flow_Expire" sourceRef="AwaitCustomerDecision" targetRef="OfferExpired" />
+    <bpmn:sequenceFlow id="Flow_ToRepair" sourceRef="CustomerAccepted" targetRef="RepairBicycle" />
+    <bpmn:sequenceFlow id="Flow_RepairedReturn" sourceRef="RepairBicycle" targetRef="ReturnedRepaired" />
+    <bpmn:sequenceFlow id="Flow_RejectedReturn" sourceRef="CustomerRejected" targetRef="ReturnedRejected" />
+    <bpmn:sequenceFlow id="Flow_ExpiredReturn" sourceRef="OfferExpired" targetRef="ReturnedExpired" />
+  </bpmn:process>
+  <bpmn:message id="AcceptedMessage" name="BikeRepairOfferAccepted">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=repairId" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="RejectedMessage" name="BikeRepairOfferRejected">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=repairId" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmndi:BPMNDiagram id="BikeRepairDiagram">
+    <bpmndi:BPMNPlane id="BikeRepairPlane" bpmnElement="BikeRepair">
+      <bpmndi:BPMNShape id="BikeReceived_di" bpmnElement="BikeReceived">
+        <dc:Bounds x="100" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="AssessDamage_di" bpmnElement="AssessDamage">
+        <dc:Bounds x="190" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CreateOffer_di" bpmnElement="CreateOffer">
+        <dc:Bounds x="350" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ReviewOffer_di" bpmnElement="ReviewOffer">
+        <dc:Bounds x="510" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="OfferApproved_di" bpmnElement="OfferApproved" isMarkerVisible="true">
+        <dc:Bounds x="670" y="195" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="662" y="156" width="65" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ReviseOffer_di" bpmnElement="ReviseOffer">
+        <dc:Bounds x="760" y="360" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="OfferReady_di" bpmnElement="OfferReady" isMarkerVisible="true">
+        <dc:Bounds x="900" y="195" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SendOffer_di" bpmnElement="SendOffer">
+        <dc:Bounds x="1010" y="180" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="AwaitCustomerDecision_di" bpmnElement="AwaitCustomerDecision">
+        <dc:Bounds x="1170" y="195" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CustomerAccepted_di" bpmnElement="CustomerAccepted">
+        <dc:Bounds x="1312" y="62" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CustomerRejected_di" bpmnElement="CustomerRejected">
+        <dc:Bounds x="1312" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="OfferExpired_di" bpmnElement="OfferExpired">
+        <dc:Bounds x="1312" y="382" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="RepairBicycle_di" bpmnElement="RepairBicycle">
+        <dc:Bounds x="1430" y="40" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ReturnedRepaired_di" bpmnElement="ReturnedRepaired">
+        <dc:Bounds x="1612" y="62" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ReturnedRejected_di" bpmnElement="ReturnedRejected">
+        <dc:Bounds x="1612" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ReturnedExpired_di" bpmnElement="ReturnedExpired">
+        <dc:Bounds x="1612" y="382" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_di" bpmnElement="Flow_Start">
+        <di:waypoint x="136" y="220" />
+        <di:waypoint x="190" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Assessed_di" bpmnElement="Flow_Assessed">
+        <di:waypoint x="290" y="220" />
+        <di:waypoint x="350" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Created_di" bpmnElement="Flow_Created">
+        <di:waypoint x="450" y="220" />
+        <di:waypoint x="510" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Reviewed_di" bpmnElement="Flow_Reviewed">
+        <di:waypoint x="610" y="220" />
+        <di:waypoint x="670" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Approved_di" bpmnElement="Flow_Approved">
+        <di:waypoint x="720" y="220" />
+        <di:waypoint x="900" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Revise_di" bpmnElement="Flow_Revise">
+        <di:waypoint x="695" y="245" />
+        <di:waypoint x="695" y="400" />
+        <di:waypoint x="760" y="400" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="699" y="286" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Revised_di" bpmnElement="Flow_Revised">
+        <di:waypoint x="860" y="400" />
+        <di:waypoint x="925" y="400" />
+        <di:waypoint x="925" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Ready_di" bpmnElement="Flow_Ready">
+        <di:waypoint x="950" y="220" />
+        <di:waypoint x="1010" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sent_di" bpmnElement="Flow_Sent">
+        <di:waypoint x="1110" y="220" />
+        <di:waypoint x="1170" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Accept_di" bpmnElement="Flow_Accept">
+        <di:waypoint x="1195" y="195" />
+        <di:waypoint x="1195" y="80" />
+        <di:waypoint x="1312" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Reject_di" bpmnElement="Flow_Reject">
+        <di:waypoint x="1220" y="220" />
+        <di:waypoint x="1312" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Expire_di" bpmnElement="Flow_Expire">
+        <di:waypoint x="1195" y="245" />
+        <di:waypoint x="1195" y="400" />
+        <di:waypoint x="1312" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToRepair_di" bpmnElement="Flow_ToRepair">
+        <di:waypoint x="1348" y="80" />
+        <di:waypoint x="1430" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_RepairedReturn_di" bpmnElement="Flow_RepairedReturn">
+        <di:waypoint x="1530" y="80" />
+        <di:waypoint x="1612" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_RejectedReturn_di" bpmnElement="Flow_RejectedReturn">
+        <di:waypoint x="1348" y="220" />
+        <di:waypoint x="1612" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ExpiredReturn_di" bpmnElement="Flow_ExpiredReturn">
+        <di:waypoint x="1348" y="400" />
+        <di:waypoint x="1612" y="400" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

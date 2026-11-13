@@ -1,0 +1,10 @@
+{
+  "id": "review-offer", "type": "default", "schemaVersion": 18,
+  "executionPlatform": "Camunda Cloud", "executionPlatformVersion": "8.8.0",
+  "exporter": { "name": "Camunda Modeler", "version": "5.34.0" },
+  "components": [
+    { "id": "Amount", "type": "number", "key": "offerAmount", "label": "Angebot (EUR)", "readonly": true, "layout": { "row": "row_0", "columns": null } },
+    { "id": "Decision", "type": "radio", "key": "reviewDecision", "label": "Entscheidung", "values": [ { "label": "Freigeben", "value": "APPROVE" }, { "label": "Überarbeiten", "value": "REVISE" } ], "validate": { "required": true }, "layout": { "row": "row_1", "columns": null } },
+    { "id": "Submit", "type": "button", "action": "submit", "label": "Prüfung abschließen", "layout": { "row": "row_2", "columns": null } }
+  ]
+}

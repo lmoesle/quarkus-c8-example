@@ -1,0 +1,11 @@
+{
+  "id": "assess-damage", "type": "default", "schemaVersion": 18,
+  "executionPlatform": "Camunda Cloud", "executionPlatformVersion": "8.8.0",
+  "exporter": { "name": "Camunda Modeler", "version": "5.34.0" },
+  "components": [
+    { "id": "Damage", "type": "textarea", "key": "damageDescription", "label": "Schaden", "validate": { "required": true, "maxLength": 2000 }, "layout": { "row": "row_0", "columns": null } },
+    { "id": "Effort", "type": "number", "key": "effortHours", "label": "Arbeitszeit (Stunden, 75 EUR/h)", "validate": { "required": true, "min": 0.01, "max": 1000 }, "layout": { "row": "row_1", "columns": null } },
+    { "id": "Materials", "type": "number", "key": "materialCost", "label": "Materialkosten (EUR)", "description": "Arbeitsstunden × 75 EUR + Materialkosten dürfen zusammen höchstens 100000 EUR betragen.", "validate": { "required": true, "min": 0, "max": "=if effortHours * 75 != null then if effortHours > 0 and effortHours <= 1000 then 100000 - effortHours * 75 else 0 else 0" }, "layout": { "row": "row_2", "columns": null } },
+    { "id": "Submit", "type": "button", "action": "submit", "label": "Begutachtung abschließen", "layout": { "row": "row_3", "columns": null } }
+  ]
+}

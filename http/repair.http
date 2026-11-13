@@ -1,0 +1,162 @@
+# Beim Anwendungsstart deployt process-engine-worker BPMN und alle vier Formulare gemeinsam.
+
+### 1. Neuer Auftrag (für jeden alternativen Pfad erneut ausführen)
+POST {{baseUrl}}/repairs
+Content-Type: application/json
+
+{
+  "customerName": "Ada Beispiel",
+  "customerEmail": "ada@example.org",
+  "bikeDescription": "Blaues Trekkingrad",
+  "repairRequest": "Bremse prüfen"
+}
+
+> {%
+    client.test("Gestartet", () => client.assert(response.status === 201));
+    client.global.set("repairId", response.body.repairId);
+%}
+
+### 2. WIEDERHOLEN bis genau eine Begutachtung vorhanden ist; asynchron, keine feste Wartezeit!
+GET {{baseUrl}}/tasks?repairId={{repairId}}&type=AssessDamage&group=technicians
+
+> {%
+    client.test("Begutachtung sichtbar", () => client.assert(response.body.length === 1));
+    if (response.body.length === 1) client.global.set("taskId", response.body[0].id);
+%}
+
+### 3. Begutachtung: 2 * 75 EUR + 10 EUR = 160 EUR
+POST {{baseUrl}}/tasks/{{taskId}}/complete
+Content-Type: application/json
+
+{
+  "damageDescription": "Bremsbeläge verschlissen",
+  "effortHours": 2,
+  "materialCost": 10
+}
+
+> {%
+    client.test("Abgeschlossen", () => client.assert(response.status === 204));
+%}
+
+### 4. WIEDERHOLEN bis Prüfung sichtbar; echter create-offer Worker berechnet den Preis
+GET {{baseUrl}}/tasks?repairId={{repairId}}&type=ReviewOffer&group=customer-service
+
+> {%
+    client.test("Angebot berechnet", () => client.assert(response.body.length === 1 && response.body[0].payload.offerAmount === 160));
+    if (response.body.length === 1) client.global.set("taskId", response.body[0].id);
+%}
+
+### 5a. Direkt freigeben -> weiter bei 8; alternativ 5b statt 5a ausführen
+POST {{baseUrl}}/tasks/{{taskId}}/complete
+Content-Type: application/json
+
+{
+  "reviewDecision": "APPROVE"
+}
+
+> {%
+    client.test("Freigegeben", () => client.assert(response.status === 204));
+%}
+
+### 5b. Alternativ überarbeiten lassen (NICHT nach 5a ausführen)
+POST {{baseUrl}}/tasks/{{taskId}}/complete
+Content-Type: application/json
+
+{
+  "reviewDecision": "REVISE"
+}
+
+### 6. WIEDERHOLEN bis Überarbeitung sichtbar
+GET {{baseUrl}}/tasks?repairId={{repairId}}&type=ReviseOffer
+
+> {%
+    client.test("Überarbeitung sichtbar", () => client.assert(response.body.length === 1));
+    if (response.body.length === 1) client.global.set("taskId", response.body[0].id);
+%}
+
+### 7. Neuen Preis freigeben; MailHog muss danach 99.50 EUR enthalten
+POST {{baseUrl}}/tasks/{{taskId}}/complete
+Content-Type: application/json
+
+{
+  "offerAmount": 99.50,
+  "revisionReason": "Kulanz für Stammkundin"
+}
+
+> {%
+    client.test("Überarbeitet", () => client.assert(response.status === 204));
+%}
+
+### 8a. Erst Mail in http://localhost:8025 prüfen, dann annehmen (202 ist nur Publikationsbestätigung)
+POST {{baseUrl}}/repairs/{{repairId}}/accept
+
+> {%
+    client.test("Publiziert", () => client.assert(response.status === 202 && response.body.correlationConfirmed === false));
+%}
+
+### 8b. Alternativ ablehnen (frischen Auftrag verwenden; NICHT nach 8a)
+POST {{baseUrl}}/repairs/{{repairId}}/reject
+
+> {%
+    client.test("Publiziert", () => client.assert(response.status === 202));
+%}
+
+### 8c. Timeout: frischen Auftrag mit -Dbike-repair.offer-validity=PT30S starten,
+### bis Mail weiterführen und NICHT antworten. Nach Ablauf wiederholt GET tasks ausführen.
+### Erwartung: keine Reparaturaufgabe. Das automatisierte BPMN-Testset prüft das Frist-Ende eindeutig.
+
+### 9. Nach Annahme WIEDERHOLEN bis Reparatur sichtbar
+GET {{baseUrl}}/tasks?repairId={{repairId}}&type=RepairBicycle
+
+> {%
+    client.test("Reparatur sichtbar", () => client.assert(response.body.length === 1));
+    if (response.body.length === 1) client.global.set("taskId", response.body[0].id);
+%}
+
+### 10. Repariert zurückgeben
+POST {{baseUrl}}/tasks/{{taskId}}/complete
+Content-Type: application/json
+
+{
+  "repairNotes": "Beläge ersetzt, Probefahrt und Rückgabe erfolgt"
+}
+
+> {%
+    client.test("Abgeschlossen", () => client.assert(response.status === 204));
+%}
+
+### 11. WIEDERHOLEN bis Projektion leer (auch nach Ablehnung/Timeout)
+GET {{baseUrl}}/tasks?repairId={{repairId}}
+
+> {%
+    client.test("Keine offenen Aufgaben", () => client.assert(response.body.length === 0));
+%}
+
+### Keine Korrelation: zufällige UUID ist publizierbar, startet aber keine Reparatur
+POST {{baseUrl}}/repairs/00000000-0000-4000-8000-000000000001/accept
+
+> {%
+    client.test("Nur publiziert", () => client.assert(response.status === 202));
+%}
+
+### Ungültiger neuer Auftrag
+POST {{baseUrl}}/repairs
+Content-Type: application/json
+
+{
+  "customerName": "",
+  "customerEmail": "invalid",
+  "bikeDescription": "Rad",
+  "repairRequest": "Bremse"
+}
+
+> {%
+    client.test("Validierungsfehler", () => client.assert(response.status === 400));
+%}
+
+### Unbekannte Aufgabe
+GET {{baseUrl}}/tasks/does-not-exist
+
+> {%
+    client.test("Nicht gefunden", () => client.assert(response.status === 404));
+%}

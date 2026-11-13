@@ -1,0 +1,9 @@
+{
+  "id": "repair-bicycle", "type": "default", "schemaVersion": 18,
+  "executionPlatform": "Camunda Cloud", "executionPlatformVersion": "8.8.0",
+  "exporter": { "name": "Camunda Modeler", "version": "5.34.0" },
+  "components": [
+    { "id": "Notes", "type": "textarea", "key": "repairNotes", "label": "Reparatur und Rückgabe dokumentieren", "validate": { "required": true, "maxLength": 2000 }, "layout": { "row": "row_0", "columns": null } },
+    { "id": "Submit", "type": "button", "action": "submit", "label": "Repariert zurückgeben", "layout": { "row": "row_1", "columns": null } }
+  ]
+}

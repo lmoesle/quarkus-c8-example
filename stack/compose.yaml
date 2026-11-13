@@ -1,0 +1,96 @@
+services:
+  camunda:
+    image: camunda/camunda:8.8.46
+    ports:
+      - "127.0.0.1:8088:8080"
+      - "127.0.0.1:26500:26500"
+      - "127.0.0.1:9600:9600"
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms512m -Xmx1g -XX:MaxDirectMemorySize=512m"
+    mem_limit: 3g
+    volumes:
+      - camunda-data:/usr/local/camunda/data
+      - ./camunda/application.yaml:/usr/local/camunda/config/application.yaml:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      # A successful TCP connection alone does not mean the broker is healthy.
+      test:
+        - CMD
+        - bash
+        - -ec
+        - |
+          exec 3<>/dev/tcp/127.0.0.1/9600
+          printf 'GET /actuator/health/status HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3
+          read -r protocol status rest <&3
+          test "$$status" = 200
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.10
+    environment:
+      discovery.type: single-node
+      cluster.name: elasticsearch
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+      # Absolute free-space thresholds keep this small development stack usable.
+      cluster.routing.allocation.disk.watermark.low: 1gb
+      cluster.routing.allocation.disk.watermark.high: 512mb
+      cluster.routing.allocation.disk.watermark.flood_stage: 256mb
+    mem_limit: 2g
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          curl -fsS 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s'
+          | grep -Eq '"status"[[:space:]]*:[[:space:]]*"(green|yellow)"'
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: bikerepair
+      POSTGRES_USER: bikerepair
+      POSTGRES_PASSWORD: bikerepair
+    ports:
+      - "127.0.0.1:5432:5432"
+    mem_limit: 512m
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          PGPASSWORD="$$POSTGRES_PASSWORD" psql -h 127.0.0.1
+          -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc 'SELECT 1' | grep -qx 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8025/api/v2/messages"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  camunda-data:
+  elasticsearch-data:
+  postgres-data:

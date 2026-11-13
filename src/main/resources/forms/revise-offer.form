@@ -1,0 +1,10 @@
+{
+  "id": "revise-offer", "type": "default", "schemaVersion": 18,
+  "executionPlatform": "Camunda Cloud", "executionPlatformVersion": "8.8.0",
+  "exporter": { "name": "Camunda Modeler", "version": "5.34.0" },
+  "components": [
+    { "id": "Amount", "type": "number", "key": "offerAmount", "label": "Überarbeiteter Gesamtbetrag (EUR)", "validate": { "required": true, "min": 0.01, "max": 100000 }, "layout": { "row": "row_0", "columns": null } },
+    { "id": "Reason", "type": "textarea", "key": "revisionReason", "label": "Begründung", "validate": { "required": true, "maxLength": 2000 }, "layout": { "row": "row_1", "columns": null } },
+    { "id": "Submit", "type": "button", "action": "submit", "label": "Überarbeitetes Angebot freigeben", "layout": { "row": "row_2", "columns": null } }
+  ]
+}

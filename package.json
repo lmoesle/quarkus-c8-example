@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "scripts": {
+    "lint": "npx -y @camunda8/cli bpmn lint src/main/resources/bpmn/bike-repair.bpmn"
+  },
+  "devDependencies": {
+    "@bpmn-io/form-json-schema": "1.18.0",
+    "ajv": "8.20.0",
+    "ajv-errors": "3.0.0",
+    "feelin": "4.6.0"
+  }
+}
